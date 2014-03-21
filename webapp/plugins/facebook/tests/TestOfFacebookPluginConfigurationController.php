@@ -247,7 +247,6 @@ class TestOfFacebookPluginConfigurationController extends ThinkUpUnitTestCase {
 
         //with auth error
         $this->assertPattern('/facebook-auth-error"/', $output);
-
     }
 
     public function testConfiguredPluginWithOneFacebookUserNoLikedPagesNoAuthError() {
@@ -409,7 +408,47 @@ class TestOfFacebookPluginConfigurationController extends ThinkUpUnitTestCase {
         $owner_instance = $owner_instance_dao->get($owner->id, $instance->id);
         $this->assertNotNull($owner_instance); //Owner Instance created
         //OAuth token set
-        $this->assertEqual($owner_instance->oauth_access_token, 'newfauxaccesstoken11234567890');
+        $this->assertEqual($owner_instance->oauth_access_token, 'swappedinlonglivetoken104567');
+    }
+
+    public function testConnectBusinessAccountUnsuccessful()  {
+        Facebook::$user_type = 'business';
+        $owner_instance_dao = new OwnerInstanceMySQLDAO();
+        $instance_dao = new InstanceMySQLDAO();
+        $owner_dao = new OwnerMySQLDAO();
+
+        $config = Config::getInstance();
+        $config->setValue('site_root_path', '/');
+
+        $_SERVER['SERVER_NAME'] = "srvr";
+        SessionCache::put('facebook_auth_csrf', '123');
+        $_GET['p'] = 'facebook';
+        $_GET['code'] = '456';
+        $_GET['state'] = '123';
+
+        $options_array = $this->buildPluginOptions();
+        $this->simulateLogin('me@example.com', true);
+
+        $instance = $instance_dao->getByUserIdOnNetwork('606837591', 'facebook');
+        $this->assertNull($instance); //Instance doesn't exist
+
+        $owner = $owner_dao->getByEmail(Session::getLoggedInUser());
+        $controller = new FacebookPluginConfigurationController($owner, 'facebook');
+        $output = $controller->go();
+
+        $v_mgr = $controller->getViewManager();
+
+        $msgs = $v_mgr->getTemplateDataItem('success_msgs');
+        $this->assertEqual(count($msgs['user_add']), 0);
+        $this->debug(Utils::varDumpToString($msgs));
+
+        $msgs = $v_mgr->getTemplateDataItem('error_msgs');
+        $this->debug(Utils::varDumpToString($msgs));
+        $this->assertEqual($msgs['authorization'], 'Sorry, ThinkUp does not support business accounts.');
+
+        $instance = $instance_dao->getByUserIdOnNetwork('606837591', 'facebook');
+        $this->assertNull($instance); //Instance not created
+        Facebook::$user_type = 'user';
     }
 
     public function testConnectAccountSuccessfulNoServerName()  {
@@ -451,7 +490,7 @@ class TestOfFacebookPluginConfigurationController extends ThinkUpUnitTestCase {
         $owner_instance = $owner_instance_dao->get($owner->id, $instance->id);
         $this->assertNotNull($owner_instance); //Owner Instance created
         //OAuth token set
-        $this->assertEqual($owner_instance->oauth_access_token, 'newfauxaccesstoken11234567890');
+        $this->assertEqual($owner_instance->oauth_access_token, 'swappedinlonglivetoken104567');
     }
 
     public function testConnectAccountHTTPSSuccessful()  {
@@ -491,7 +530,7 @@ class TestOfFacebookPluginConfigurationController extends ThinkUpUnitTestCase {
         $owner_instance = $owner_instance_dao->get($owner->id, $instance->id);
         $this->assertNotNull($owner_instance); //Owner Instance created
         //OAuth token set
-        $this->assertEqual($owner_instance->oauth_access_token, 'newfauxaccesstoken11234567890');
+        $this->assertEqual($owner_instance->oauth_access_token, 'swappedinlonglivetoken104567');
     }
 
     public function testConnectAccountInvalidCSRFToken()  {
@@ -567,7 +606,7 @@ class TestOfFacebookPluginConfigurationController extends ThinkUpUnitTestCase {
 
         $owner_instance = $owner_instance_dao->get($owner->id, $instance->id);
         $this->assertNotNull($owner_instance);
-        $this->assertEqual($owner_instance->oauth_access_token, 'newfauxaccesstoken11234567890');
+        $this->assertEqual($owner_instance->oauth_access_token, 'swappedinlonglivetoken104567');
 
         //assert the auth error got reset to an empty string on successful reconnection
         $this->assertEqual($owner_instance->auth_error, '');
@@ -602,5 +641,58 @@ class TestOfFacebookPluginConfigurationController extends ThinkUpUnitTestCase {
         // looks for page delete token
         $this->assertPattern('/name="csrf_token" value="'. self::CSRF_TOKEN .
         '" \/><!\-\- delete page csrf token \-\->/', $output);
+    }
+
+    public function testOwnerMemberLevelWithAccountConnected() {
+        // build options data
+        $options_array = $this->buildPluginOptions();
+        //Add a connected Facebook account
+        $builders[] = FixtureBuilder::build('instances', array('id'=>2, 'network_user_id'=>14,
+        'network_username'=>'zuck', 'is_public'=>1, 'network'=>'facebook'));
+        $builders[] = FixtureBuilder::build('owner_instances', array('owner_id'=>1, 'instance_id'=>2));
+
+        $this->simulateLogin('me@example.com');
+        $owner_dao = DAOFactory::getDAO('OwnerDAO');
+        $owner = $owner_dao->getByEmail(Session::getLoggedInUser());
+        //Set membership_level to Member
+        $owner->membership_level = "Member";
+
+        $controller = new FacebookPluginConfigurationController($owner, 'facebook');
+        $output = $controller->go();
+        $this->debug($output);
+
+        // Assert that the Add User button isn't there
+        $this->assertNoPattern('/Add a Facebook Account/', $output);
+        // Assert that the message about upgradiing is there
+        $this->assertPattern('/To connect another Facebook account to ThinkUp, upgrade your membership/', $output);
+    }
+
+    public function testOwnerProLevelWith9AccountsConnected() {
+        self::buildInstanceData();
+        // build options data
+        $options_array = $this->buildPluginOptions();
+        //Add 9 connected Facebok accounts
+        $i = 9;
+        while ($i > 0) {
+            $builders[] = FixtureBuilder::build('instances', array('id'=>(10+$i), 'network_user_id'=>14,
+            'network_username'=>'zuck', 'is_public'=>1, 'network'=>'facebook'));
+            $builders[] = FixtureBuilder::build('owner_instances', array('owner_id'=>2, 'instance_id'=>(10+$i)));
+            $i--;
+        }
+
+        $this->simulateLogin('me2@example.com', true);
+        $owner_dao = DAOFactory::getDAO('OwnerDAO');
+        $owner = $owner_dao->getByEmail(Session::getLoggedInUser());
+        //Set membership_level to Pro
+        $owner->membership_level = "Pro";
+        $controller = new FacebookPluginConfigurationController($owner, 'facebook');
+        $output = $controller->go();
+
+        $this->debug($output);
+
+        // Assert that the Add User button isn't there
+        $this->assertNoPattern('/Add a Facebook Account/', $output);
+        // Assert that the message about the membership cap is there
+        $this->assertPattern('/You&#39;ve connected 10 of 10 accounts to ThinkUp./', $output);
     }
 }

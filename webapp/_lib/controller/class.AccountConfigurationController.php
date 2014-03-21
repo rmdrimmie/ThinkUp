@@ -31,6 +31,11 @@
  */
 class AccountConfigurationController extends ThinkUpAuthController {
 
+    /*
+     * @var array Options for notification frequency
+     */
+    var $notification_frequencies = array('daily'=>'Daily','weekly'=>'Weekly','both'=>'Both','never'=>'Never');
+
     /**
      * Constructor
      * @param bool $session_started
@@ -48,11 +53,14 @@ class AccountConfigurationController extends ThinkUpAuthController {
         $this->disableCaching();
         $this->addHeaderJavaScript('assets/js/jqBootstrapValidation.js');
         $this->addHeaderJavaScript('assets/js/validate-fields.js');
+        $this->addHeaderJavaScript('assets/js/jstz-1.0.4.min.js');
 
         $owner_dao = DAOFactory::getDAO('OwnerDAO');
         $invite_dao = DAOFactory::getDAO('InviteDAO');
         $owner = $owner_dao->getByEmail($this->getLoggedInUser());
         $this->addToView('owner', $owner);
+        $this->addToView('notification_options', $this->notification_frequencies);
+        $this->addToView('tz_list', Installer::getTimeZoneList());
         $this->view_mgr->addHelp('api', 'userguide/api/posts/index');
         $this->view_mgr->addHelp('application_settings', 'userguide/settings/application');
         $this->view_mgr->addHelp('users', 'userguide/settings/allaccounts');
@@ -265,6 +273,42 @@ class AccountConfigurationController extends ThinkUpAuthController {
                 'Please try again.','account');
             }
         }
+
+        //process change to notification frequency
+        if (isset($_POST['updatefrequency'])) {
+            $this->validateCSRFToken();
+            $new_freq = isset($_POST['notificationfrequency']) ? $_POST['notificationfrequency'] : null;
+            $updates = 0;
+            if ($new_freq && isset($this->notification_frequencies[$new_freq])) {
+                $updates = $owner_dao->setEmailNotificationFrequency($this->getLoggedInUser(), $new_freq);
+            }
+            if ($updates > 0) {
+                // Update the user in the view to match
+                $owner->email_notification_frequency = $new_freq;
+                $this->addToView('owner', $owner);
+                $this->addSuccessMessage('Your email notification frequency has been updated.', 'notifications');
+            }
+        }
+
+        //process change to timezone
+        if (isset($_POST['updatetimezone'])) {
+            $this->validateCSRFToken();
+            $new_tz = isset($_POST['timezone']) ? $_POST['timezone'] : null;
+            $updates = 0;
+            if (isset($new_tz)) {
+                $possible_timezones = timezone_identifiers_list();
+                if (in_array($new_tz, $possible_timezones)) {
+                    $updates = $owner_dao->setTimezone($this->getLoggedInUser(), $new_tz);
+                }
+            }
+            if ($updates > 0) {
+                // Update the user in the view to match
+                $owner->timezone = $new_tz;
+                $this->addToView('owner', $owner);
+                $this->addSuccessMessage('Your time zone has been saved.', 'timezone');
+            }
+        }
+
         $this->view_mgr->clear_all_cache();
 
         /* Begin plugin-specific configuration handling */
@@ -278,6 +322,7 @@ class AccountConfigurationController extends ThinkUpAuthController {
             $pobj = $webapp_plugin_registrar->getPluginObject($active_plugin);
             $p = new $pobj;
             $this->addToView('body', $p->renderConfiguration($owner));
+            $this->addToView('force_plugin', true);
             $profiler = Profiler::getInstance();
             $profiler->clearLog();
         } elseif (isset($_GET['p']) && isset($_GET['u']) && isset($_GET['n'])) {
@@ -291,14 +336,15 @@ class AccountConfigurationController extends ThinkUpAuthController {
             $pobj = $webapp_plugin_registrar->getPluginObject($active_plugin);
             $p = new $pobj;
             $this->addToView('body', $p->renderInstanceConfiguration($owner, $instance_username, $instance_network));
+            $this->addToView('force_plugin', true);
             $profiler = Profiler::getInstance();
             $profiler->clearLog();
-        }  else {
-            $plugin_dao = DAOFactory::getDAO('PluginDAO');
-            $config = Config::getInstance();
-            $installed_plugins = $plugin_dao->getInstalledPlugins();
-            $this->addToView('installed_plugins', $installed_plugins);
         }
+
+        $plugin_dao = DAOFactory::getDAO('PluginDAO');
+        $config = Config::getInstance();
+        $installed_plugins = $plugin_dao->getInstalledPlugins();
+        $this->addToView('installed_plugins', $installed_plugins);
         /* End plugin-specific configuration handling */
 
         if ($owner->is_admin) {

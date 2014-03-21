@@ -59,6 +59,7 @@ class ThinkUpUnitTestCase extends ThinkUpBasicUnitTestCase {
         } else {
             $this->test_database_name = $THINKUP_CFG['db_name'];
         }
+        $config->setValue('mandrill_api_key', '');
 
         $this->testdb_helper = new ThinkUpTestDatabaseHelper();
         $this->testdb_helper->drop($this->test_database_name);
@@ -71,6 +72,7 @@ class ThinkUpUnitTestCase extends ThinkUpBasicUnitTestCase {
      */
     public function tearDown() {
         if (isset(ThinkUpTestDatabaseHelper::$PDO)) {
+            ThinkUpTestDatabaseHelper::$PDO->exec('SET SESSION sql_mode = "";');
             $this->testdb_helper->drop($this->test_database_name);
         }
         parent::tearDown();

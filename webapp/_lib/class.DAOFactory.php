@@ -194,7 +194,17 @@ class DAOFactory {
     //Video DAO
         'VideoDAO' => array(
     //MySQL Version
-            'mysql' => 'VideoMySQLDAO' )
+            'mysql' => 'VideoMySQLDAO' ),
+    //Photo DAO
+        'PhotoDAO' => array(
+    //MySQL Version
+            'mysql' => 'PhotoMySQLDAO' ),
+        'SessionDAO' => array(
+    //MySQL Version
+            'mysql' => 'SessionMySQLDAO' ),
+        'CookieDAO' => array(
+    //MySQL Version
+            'mysql' => 'CookieMySQLDAO' )
 
     );
 

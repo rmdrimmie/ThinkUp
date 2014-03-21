@@ -25,6 +25,28 @@
  * @author Gina Trapani <ginatrapani [at] gmail [dot] com>
  */
 class InsightPluginParent {
+    /**
+     * @var InsightDAO
+     */
+    var $insight_dao;
+    /**
+     * @var Logger
+     */
+    var $logger;
+    /**
+     * @var InsightTerms
+     */
+    var $terms;
+    /** 
+     * Insight date
+     * @var DateTime
+     */
+    var $insight_date;
+    /** 
+     * Username.
+     * @var str
+     */
+    var $username;
     public function generateInsight(Instance $instance, $last_week_of_posts, $number_days) {
         $this->logger = Logger::getInstance();
         $this->logger->setUsername($instance->network_username);
@@ -57,9 +79,8 @@ class InsightPluginParent {
         }
 
         // Check whether testing
-        $in_test_mode = ((isset($_SESSION["MODE"]) && $_SESSION["MODE"] == "TESTS") || getenv("MODE") == "TESTS");
-        if ($in_test_mode) {
-            return ($run && $in_test_mode);
+        if (Utils::isTest()) {
+            return ($run && Utils::isTest());
         }
 
         // Check the day of the week (0 for Sunday through 6 for Saturday) on which the insight should run

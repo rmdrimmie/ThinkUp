@@ -35,7 +35,6 @@ class TestOfPostAPIController extends ThinkUpUnitTestCase {
 
     public function setUp() {
         parent::setUp();
-        $config = Config::getInstance();
         $this->builders = self::buildData();
     }
 
@@ -840,9 +839,6 @@ class TestOfPostAPIController extends ThinkUpUnitTestCase {
     }
 
     public function testPost() {
-        $config = Config::getInstance();
-        $config->setValue('timezone', 'America/Los_Angeles');
-
         $_GET['type'] = 'post';
         $_GET['post_id'] = '137';
         $_GET['network'] = 'twitter';
@@ -859,13 +855,20 @@ class TestOfPostAPIController extends ThinkUpUnitTestCase {
         $this->assertEqual($output->id, '137', "Incorrect post fetched.");
 
         $this->assertEqual(sizeof($output->coordinates->coordinates), 2,
-     "Size of coordinates is too big or too small. Is " . sizeof($output->coordinates->coordinates) .
-     " when it should be 2.");
+         "Size of coordinates is too big or too small. Is " . sizeof($output->coordinates->coordinates) .
+         " when it should be 2.");
 
         $this->assertEqual($output->thinkup->is_geo_encoded, 1);
         $this->assertEqual($output->coordinates, $output->geo, "Geo and coordinates are meant to be exactly the same.");
 
-        $this->assertEqual($output->user->last_updated, '2010-03-02 13:45:55');
+        //This date is stored in storage as 2010-03-02 08:45:55
+        /**
+         * This assertion evaluates differently depending on whether your MySQL server supports
+         * SET timezone statement in PDODAO::connect function
+         * $this->assertEqual($output->user->last_updated, '2010-03-02 13:45:55');
+         */
+        $this->assertTrue(strtotime($output->user->last_updated) > strtotime('2010-03-02 00:00:00'));
+        $this->assertTrue(strtotime($output->user->last_updated) < strtotime('2010-03-03 00:00:00'));
 
         // test trim user
         $_GET['trim_user'] = true;
@@ -2834,7 +2837,7 @@ class TestOfPostAPIController extends ThinkUpUnitTestCase {
         $_GET['type'] = 'keyword_posts';
         $_GET['keyword'] = 'first';
         $_GET['network'] = 'twitter';
-        $controller = new PostAPIController();
+        $controller = new PostAPIController(true);
         $output = json_decode($controller->go());
         $this->assertEqual(sizeof($output), 20);
 
@@ -2854,7 +2857,7 @@ class TestOfPostAPIController extends ThinkUpUnitTestCase {
         $_GET['page'] = 1;
         $_GET['order_by'] = 'post_id';
         $_GET['direction'] = 'ASC';
-        $controller = new PostAPIController();
+        $controller = new PostAPIController(true);
         $output = json_decode($controller->go());
         $this->assertEqual(sizeof($output), 20);
         $counter=301;
@@ -2864,7 +2867,7 @@ class TestOfPostAPIController extends ThinkUpUnitTestCase {
         }
 
         $_GET['page'] = 2;
-        $controller = new PostAPIController();
+        $controller = new PostAPIController(true);
         $output = json_decode($controller->go());
         $this->assertEqual(sizeof($output), 10);
         $counter=341;
@@ -2879,7 +2882,7 @@ class TestOfPostAPIController extends ThinkUpUnitTestCase {
 
         //test #second
         $_GET['keyword'] = '#second';
-        $controller = new PostAPIController();
+        $controller = new PostAPIController(true);
         $output = json_decode($controller->go());
         $this->assertEqual(sizeof($output), 20);
 

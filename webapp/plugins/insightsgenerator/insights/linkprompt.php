@@ -43,8 +43,10 @@ class LinkPromptInsight extends InsightPluginParent implements InsightPlugin {
             $post_dao = DAOFactory::getDAO('PostDAO');
             $link_dao = DAOFactory::getDAO('LinkDAO');
 
+            // Check from midnight two days ago until an hour from now
+            // (to avoid clock-sync issues)
             $recent_posts = $post_dao->getPostsByUserInRange($instance->network_user_id, $instance->network,
-            date('Y-m-d H:i:s', strtotime('-2 days midnight')), date('Y-m-d H:i:s', strtotime('today midnight')));
+            date('Y-m-d H:i:s', strtotime('-2 days midnight')), date('Y-m-d H:i:s', strtotime('+1 hour')));
 
             $posts_with_links = array();
 
@@ -64,12 +66,12 @@ class LinkPromptInsight extends InsightPluginParent implements InsightPlugin {
             $num_links = $link_dao->countLinksPostedByUserSinceDaysAgo($instance->network_user_id,
             $instance->network, 30);
 
-            if ($num_posts && (($num_links / $num_posts) > 0.2) && !count($posts_with_links)) {
+            if ($num_posts && (($num_links / $num_posts) > 0.2) && count($recent_posts) && !count($posts_with_links)) {
                 $insight_text = $this->username." hasn't ".$this->terms->getVerb('posted')
                 ." a link in the last 2 days. It may be time to share an interesting link with "
                 .$this->terms->getNoun('friend', InsightTerms::PLURAL).".";
 
-                $this->insight_dao->insertInsight('link_prompt', $instance->id, $this->insight_date,
+                $this->insight_dao->insertInsightDeprecated('link_prompt', $instance->id, $this->insight_date,
                 "Nudge:", $insight_text, basename(__FILE__, ".php"), Insight::EMPHASIS_LOW);
             }
         }
@@ -92,8 +94,7 @@ class LinkPromptInsight extends InsightPluginParent implements InsightPlugin {
     public function shouldGenerateInsight($slug, Instance $instance, $insight_date=null,
     $regenerate_existing_insight=false, $day_of_week=null, $count_last_week_of_posts=null,
     $excluded_networks=null, $alternate_day=true) {
-        $in_test_mode = ((isset($_SESSION["MODE"]) && $_SESSION["MODE"] == "TESTS") || getenv("MODE") == "TESTS");
-        if ($in_test_mode) {
+        if (Utils::isTest()) {
             return true;
         } else {
             return $alternate_day && parent::shouldGenerateInsight($slug, $instance, $insight_date,
@@ -102,5 +103,5 @@ class LinkPromptInsight extends InsightPluginParent implements InsightPlugin {
     }
 }
 
-$insights_plugin_registrar = PluginRegistrarInsights::getInstance();
-$insights_plugin_registrar->registerInsightPlugin('LinkPromptInsight');
+//$insights_plugin_registrar = PluginRegistrarInsights::getInstance();
+//$insights_plugin_registrar->registerInsightPlugin('LinkPromptInsight');
